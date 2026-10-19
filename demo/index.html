@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>工程制图 · 分步绘制演示</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #0d1017;
+    --panel: #101521;
+    --panel-2: #161d2a;
+    --line: #232c3b;
+    --text: #e7eef8;
+    --muted: #8b98ac;
+    --accent: #4ea8ff;
+    --accent-soft: rgba(78, 168, 255, .14);
+    --paper: #ffffff;
+    --ink: #121820;
+    --dim-ink: #2f5d9e;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 640px at 15% -12%, #16202e 0%, #0d1017 58%);
+    color: var(--text);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 256px minmax(0, 1fr);
+    grid-template-rows: 64px minmax(0, 1fr);
+    height: 100vh;
+  }
+
+  /* ---------- 顶栏 ---------- */
+  .hd {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(16, 21, 33, .86);
+    backdrop-filter: blur(8px);
+  }
+  .hd__brand { display: flex; align-items: center; gap: 12px; }
+  .hd__mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center;
+    background: linear-gradient(160deg, #4ea8ff, #2b6fd0);
+    box-shadow: 0 4px 14px rgba(78, 168, 255, .28);
+  }
+  .hd h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+  .hd p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .hd__meta { display: flex; gap: 8px; }
+  .pill {
+    font-size: 11.5px; color: #a9b8cc; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel-2);
+  }
+
+  /* ---------- 侧栏 ---------- */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+    padding: 18px 16px 26px;
+    overflow: auto;
+  }
+  .side h2 {
+    margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 1.4px;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .side h2 + * { margin-bottom: 22px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 9px 10px; margin-bottom: 4px; border-radius: 8px;
+    cursor: pointer; border: 1px solid transparent;
+    transition: background .18s, border-color .18s, opacity .18s;
+  }
+  .steps li:hover { background: rgba(255, 255, 255, .035); }
+  .steps li.is-current { background: var(--accent-soft); border-color: rgba(78, 168, 255, .35); }
+  .steps li.is-done .idx { color: #4ecf9a; border-color: rgba(78, 207, 154, .45); background: rgba(78, 207, 154, .1); }
+  .steps li.is-current .idx { color: #0d1017; border-color: transparent; background: var(--accent); }
+  .idx {
+    flex: 0 0 20px; height: 20px; border-radius: 6px;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--muted); border: 1px solid var(--line); background: var(--panel-2);
+    transition: all .18s;
+  }
+  .steps .t { font-size: 12.5px; line-height: 1.45; padding-top: 2px; }
+  .steps li.is-done .t { color: var(--muted); }
+
+  .legend { list-style: none; margin: 0; padding: 0; }
+  .legend li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #b8c6d8; padding: 6px 0;
+  }
+  .legend svg { flex: 0 0 58px; }
+  .legend .h { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+  /* ---------- 画布区 ---------- */
+  .stage { display: flex; flex-direction: column; gap: 12px; padding: 18px; min-width: 0; overflow: auto; }
+  .paper {
+    background: var(--paper);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .07);
+  }
+  .paper svg { display: block; width: 100%; height: auto; }
+
+  /* ---------- 控制栏 ---------- */
+  .bar {
+    position: relative;
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    overflow: hidden;
+  }
+  .narration {
+    flex: 1 1 auto; min-width: 0; margin: 0;
+    font-size: 13px; line-height: 1.6; color: #c8d5e6;
+  }
+  .narration b { color: #fff; font-weight: 600; }
+  .ctrl { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  button {
+    font: inherit; font-size: 12.5px;
+    padding: 8px 15px; border-radius: 8px; cursor: pointer;
+    color: #cdd9e8; background: #1c2431;
+    border: 1px solid #2c3648;
+    transition: all .16s ease;
+  }
+  button:hover:not(:disabled) { background: #24303f; color: #fff; border-color: #3a465b; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+  button.primary {
+    background: linear-gradient(180deg, #4ea8ff, #3585e0);
+    border-color: #2f7ad0; color: #fff; font-weight: 600;
+    box-shadow: 0 4px 14px -4px rgba(78, 168, 255, .6);
+  }
+  button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #5fb3ff, #3d90ea); }
+  button.ghost { width: 36px; padding: 8px 0; text-align: center; font-size: 14px; }
+  .counter {
+    font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+    min-width: 52px; text-align: center;
+  }
+  .progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: transparent; }
+  .progress i {
+    display: block; height: 100%; width: 0;
+    background: linear-gradient(90deg, #2b6fd0, #4ea8ff);
+    transition: width .35s cubic-bezier(.4, 0, .2, 1);
+  }
+  .busy .progress i { background: linear-gradient(90deg, #4ea8ff, #7cc7ff); }
+
+  /* ---------- 生长动画 ---------- */
+  .reveal {
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 1;
+    animation-name: ed-reveal;
+    animation-timing-function: cubic-bezier(.4, .02, .3, 1);
+    animation-fill-mode: forwards;
+  }
+  @keyframes ed-reveal { to { stroke-dashoffset: 0; } }
+  .fade-in { opacity: 0; animation: ed-fade .34s ease-out forwards; }
+  @keyframes ed-fade { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal, .fade-in { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  }
+
+  .dim-text {
+    paint-order: stroke;
+    stroke: #ffffff;
+    stroke-width: 8px;
+    stroke-linejoin: round;
+    fill: var(--dim-ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 64px auto minmax(0, 1fr); }
+    .side { border-right: none; border-bottom: 1px solid var(--line); }
+    .bar { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hd">
+    <div class="hd__brand">
+      <span class="hd__mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round">
+          <path d="M3 20h18M6 20V8l6-4 6 4v12M10 20v-5h4v5" />
+        </svg>
+      </span>
+      <div>
+        <h1>工程制图 · 分步绘制演示</h1>
+        <p>腰形法兰 · 线型按 GB/T 4457.4 — 2002</p>
+      </div>
+    </div>
+    <div class="hd__meta">
+      <span class="pill">JSON 驱动</span>
+      <span class="pill">SVG 渲染</span>
+      <span class="pill">可回退分步</span>
+    </div>
+  </header>
+
+  <aside class="side">
+    <h2>绘制步骤</h2>
+    <ol class="steps" id="stepList"></ol>
+
+    <h2>线型图例</h2>
+    <ul class="legend" id="legend"></ul>
+  </aside>
+
+  <main class="stage">
+    <div class="paper">
+      <svg id="scene" viewBox="0 0 920 660" xmlns="http://www.w3.org/2000/svg" aria-label="零件图分步绘制演示">
+        <defs>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M20 0H0V20" fill="none" stroke="#e8eef8" stroke-width="1" />
+          </pattern>
+        </defs>
+
+        <rect width="920" height="660" fill="#ffffff" />
+        <rect x="26" y="26" width="868" height="608" fill="url(#grid)" />
+        <rect x="26" y="26" width="868" height="608" fill="none" stroke="#121820" stroke-width="2.5" />
+
+        <g id="sceneContent"></g>
+
+        <g id="titleBlock" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+          <rect x="670" y="564" width="224" height="70" fill="#ffffff" stroke="#121820" stroke-width="2.5" />
+          <line x1="670" y1="594" x2="894" y2="594" stroke="#121820" stroke-width="1.5" />
+          <line x1="812" y1="564" x2="812" y2="594" stroke="#121820" stroke-width="1.5" />
+          <text x="682" y="584" font-size="15" font-weight="600" fill="#121820">腰形法兰</text>
+          <text x="882" y="584" font-size="12" fill="#5a6a80" text-anchor="end">1 : 1</text>
+          <text x="682" y="615" font-size="11.5" fill="#5a6a80">GB/T 4457.4 — 线型</text>
+          <text x="882" y="615" font-size="11.5" fill="#5a6a80" text-anchor="end">单位 mm</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="bar" id="bar">
+      <p class="narration" id="narration"></p>
+      <div class="ctrl">
+        <button id="prev" type="button">上一步</button>
+        <span class="counter" id="counter">1 / 7</span>
+        <button id="next" type="button" class="primary">下一步</button>
+        <button id="reset" type="button" class="ghost" title="回到第一步">⟲</button>
+      </div>
+      <div class="progress"><i id="progressBar"></i></div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================
+   * 1. 线型库 —— GB/T 4457.4
+   * =======================================================*/
+  var LINE_TYPES = {
+    thick:  { label: "粗实线",   hint: "可见轮廓",     width: 3.2, dash: null },
+    thin:   { label: "细实线",   hint: "尺寸线",       width: 1.5, dash: null },
+    dashed: { label: "细虚线",   hint: "不可见轮廓",   width: 1.5, dash: [10, 6] },
+    center: { label: "细点画线", hint: "轴线 / 对称线", width: 1.5, dash: [26, 5, 3, 5] }
+  };
+  var COLOR = { geom: "#121820", dim: "#2f5d9e" };
+
+  function strokeAttrs(lineType, color) {
+    var t = LINE_TYPES[lineType] || LINE_TYPES.thick;
+    var a = {
+      stroke: color || COLOR.geom,
+      "stroke-width": t.width,
+      fill: "none",
+      "stroke-linecap": t.dash ? "butt" : "round",
+      "stroke-linejoin": "round"
+    };
+    if (t.dash) a["stroke-dasharray"] = t.dash.join(" ");
+    return a;
+  }
+
+  /* =========================================================
+   * 2. 几何工具（屏幕坐标系，y 轴向下）
+   * =======================================================*/
+  function polar(cx, cy, r, deg) {
+    var rad = deg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  }
+
+  function shapePath(el) {
+    if (el.kind === "line") {
+      return "M" + el.x1 + " " + el.y1 + "L" + el.x2 + " " + el.y2;
+    }
+    if (el.kind === "circle") {
+      var r = el.r, cx = el.cx, cy = el.cy;
+      // 从左端点起笔，两段半圆弧闭合；pathLength=1 便于归一化描边动画
+      return "M" + (cx - r) + " " + cy +
+             "a" + r + " " + r + " 0 1 0 " + (2 * r) + " 0" +
+             "a" + r + " " + r + " 0 1 0 " + (-2 * r) + " 0";
+    }
+    if (el.kind === "arc") {
+      var p1 = polar(el.cx, el.cy, el.r, el.startAngle);
+      var p2 = polar(el.cx, el.cy, el.r, el.endAngle);
+      var delta = el.endAngle - el.startAngle;
+      var large = Math.abs(delta) > 180 ? 1 : 0;
+      var sweep = delta > 0 ? 0 : 1; // 屏幕 y 向下，数学逆时针 => sweep=0
+      return "M" + p1.x + " " + p1.y + "A" + el.r + " " + el.r +
+             " 0 " + large + " " + sweep + " " + p2.x + " " + p2.y;
+    }
+    return "";
+  }
+
+  /* =========================================================
+   * 3. 尺寸标注引擎
+   *    输入起点/终点，自动产出：尺寸界线 + 尺寸线 + 箭头 + 文字位姿
+   * =======================================================*/
+  function normalizeTextAngle(deg) {
+    var a = deg;
+    while (a > 90) a -= 180;
+    while (a < -90) a += 180;
+    // 竖直尺寸线：文字自下而上，便于从图纸右侧阅读
+    if (Math.abs(a - 90) < 1e-6) a = -90;
+    return a;
+  }
+
+  function buildDimension(spec) {
+    var from = spec.from, to = spec.to;
+    var offset = spec.offset == null ? 20 : spec.offset;
+    var orientation = spec.orientation || "aligned";
+    var arrow = spec.arrow || "both";
+    var gap = spec.gap == null ? 6 : spec.gap;
+    var extend = spec.extend == null ? 9 : spec.extend;
+    var arrowLen = spec.arrowLength == null ? 12 : spec.arrowLength;
+    var arrowW = spec.arrowWidth == null ? 7 : spec.arrowWidth;
+    var textGap = spec.textGap == null ? 13 : spec.textGap;
+
+    /* --- 3.1 量测方向 --- */
+    var dir;
+    if (orientation === "horizontal") dir = { x: 1, y: 0 };
+    else if (orientation === "vertical") dir = { x: 0, y: 1 };
+    else {
+      var dx = to.x - from.x, dy = to.y - from.y;
+      var dl = Math.hypot(dx, dy) || 1;
+      dir = { x: dx / dl, y: dy / dl };
+    }
+
+    /* --- 3.2 法向：dir 顺时针转 90°，offset 正负决定偏移到哪一侧 --- */
+    var normal = { x: dir.y, y: -dir.x };
+    var sign = offset === 0 ? 1 : (offset > 0 ? 1 : -1);
+    var dist = Math.abs(offset);
+    var n = { x: normal.x * sign, y: normal.y * sign };
+
+    /* --- 3.3 尺寸线两端 --- */
+    var d1, d2, tmp;
+    if (orientation === "horizontal") {
+      var y = from.y + n.y * dist;
+      d1 = { x: from.x, y: y }; d2 = { x: to.x, y: y };
+    } else if (orientation === "vertical") {
+      var x = from.x + n.x * dist;
+      d1 = { x: x, y: from.y }; d2 = { x: x, y: to.y };
+    } else {
+      d1 = { x: from.x + n.x * dist, y: from.y + n.y * dist };
+      d2 = { x: to.x + n.x * dist, y: to.y + n.y * dist };
+    }
+    if ((d2.x - d1.x) * dir.x + (d2.y - d1.y) * dir.y < 0) { tmp = d1; d1 = d2; d2 = tmp; }
+
+    var measured = Math.hypot(d2.x - d1.x, d2.y - d1.y);
+
+    /* --- 3.4 尺寸界线（细实线，与被注轮廓留 gap） --- */
+    var extension = [];
+    if (dist > 0.5) {
+      [from, to].forEach(function (p) {
+        extension.push([
+          { x: p.x + n.x * gap, y: p.y + n.y * gap },
+          { x: p.x + n.x * (dist + extend), y: p.y + n.y * (dist + extend) }
+        ]);
+      });
+    }
+
+    /* --- 3.5 箭头（实心三角形，尖端落在尺寸界线上） --- */
+    var arrows = [];
+    function addArrow(tip, toward) {
+      var vx = toward.x - tip.x, vy = toward.y - tip.y;
+      var l = Math.hypot(vx, vy) || 1;
+      var ux = vx / l, uy = vy / l;
+      var bx = tip.x + ux * arrowLen, by = tip.y + uy * arrowLen;
+      var px = -uy, py = ux;
+      arrows.push([
+        [tip.x, tip.y],
+        [bx + px * arrowW / 2, by + py * arrowW / 2],
+        [bx - px * arrowW / 2, by - py * arrowW / 2]
+      ]);
+    }
+    if (arrow === "both" || arrow === "start") addArrow(d1, d2);
+    if (arrow === "both" || arrow === "end") addArrow(d2, d1);
+
+    /* --- 3.6 文字：位于尺寸线中点法向侧，随尺寸线方向旋转 --- */
+    var mid = { x: (d1.x + d2.x) / 2, y: (d1.y + d2.y) / 2 };
+    var angle = normalizeTextAngle(Math.atan2(d2.y - d1.y, d2.x - d1.x) * 180 / Math.PI);
+    var value = spec.text != null ? spec.text : String(Math.round(measured * 10) / 10);
+
+    var text = {
+      x: mid.x + n.x * textGap,
+      y: mid.y + n.y * textGap,
+      angle: angle,
+      value: value
+    };
+
+    /* --- 3.7 合并路径：一条 path 即可驱动整组标注的生长动画 --- */
+    function seg(p, q) {
+      return "M" + Math.round(p.x * 100) / 100 + " " + Math.round(p.y * 100) / 100 +
+             "L" + Math.round(q.x * 100) / 100 + " " + Math.round(q.y * 100) / 100;
+    }
+    var parts = extension.map(function (pair) { return seg(pair[0], pair[1]); });
+    parts.push(seg(d1, d2));
+
+    return {
+      path: parts.join(""),
+      extension: extension,
+      line: [d1, d2],
+      arrows: arrows,
+      text: text,
+      measured: measured
+    };
+  }
+
+  /* =========================================================
+   * 4. 图纸数据（mm -> viewBox 坐标）
+   *    真实项目里这段由视觉大模型输出、后端归一化后下发
+   * =======================================================*/
+  var S = 4.0;            // px / mm
+  var OX = 420, OY = 330; // 图心
+  function P(x, y) { return { x: OX + x * S, y: OY - y * S }; }
+  function mm(v) { return v * S; }
+  var CEN = P(0, 0), LEFT = P(-18, 0), RIGHT = P(18, 0);
+
+  function L(id, lineType, a, b) {
+    return { id: id, kind: "line", lineType: lineType, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  }
+  function CIR(id, lineType, c, r) {
+    return { id: id, kind: "circle", lineType: lineType, cx: c.x, cy: c.y, r: mm(r) };
+  }
+  function ARC(id, lineType, c, r, a1, a2) {
+    return { id: id, kind: "arc", lineType: lineType, cx: c.x, cy: c.y, r: mm(r), startAngle: a1, endAngle: a2 };
+  }
+  function DIM(id, o) {
+    o.id = id; o.kind = "dimension"; o.lineType = "thin"; return o;
+  }
+
+  var STEPS = [
+    {
+      id: "s1", title: "定基准线",
+      narration: "先画<b>细点画线</b>：一条水平回转轴线、一条竖直对称线，交出零件中心。基准线是所有尺寸的起算点。",
+      elements: [
+        L("c-h", "center", P(-52, 0), P(52, 0)),
+        L("c-v", "center", P(0, -33), P(0, 33))
+      ]
+    },
+    {
+      id: "s2", title: "画两端 R25 圆弧",
+      narration: "以轴线上相距 36 mm 的两点为圆心，各画一段 <b>R25 半圆弧</b>（粗实线）。圆弧从基准线起笔，便于检查对称。",
+      elements: [
+        ARC("a-l", "thick", LEFT, 25, 90, 270),
+        ARC("a-r", "thick", RIGHT, 25, -90, 90)
+      ]
+    },
+    {
+      id: "s3", title: "连上下轮廓",
+      narration: "两条<b>粗实线</b>连接圆弧的上、下端点，腰形外轮廓闭合。",
+      elements: [
+        L("l-t", "thick", P(-18, 25), P(18, 25)),
+        L("l-b", "thick", P(-18, -25), P(18, -25))
+      ]
+    },
+    {
+      id: "s4", title: "画背面沉孔",
+      narration: "不可见轮廓改用<b>细虚线</b>：背面的 Ø30 沉孔按投影画成整圆，线型一换就区分了可见性。",
+      elements: [CIR("c-cb", "dashed", CEN, 15)]
+    },
+    {
+      id: "s5", title: "画中心孔",
+      narration: "Ø22 通孔用<b>粗实线</b>，圆心正落在两条基准线的交点上。",
+      elements: [CIR("c-hole", "thick", CEN, 11)]
+    },
+    {
+      id: "s6", title: "画安装孔",
+      narration: "两端圆弧圆心处各画一个 Ø8 安装孔，并补画孔的<b>短十字中心线</b>（细点画线，超出轮廓 2～3 mm）。",
+      elements: [
+        CIR("h-l", "thick", LEFT, 4),
+        CIR("h-r", "thick", RIGHT, 4),
+        L("h-lc", "center", P(-18, -5.5), P(-18, 5.5)),
+        L("h-rc", "center", P(18, -5.5), P(18, 5.5))
+      ]
+    },
+    {
+      id: "s7", title: "标注尺寸",
+      narration: "尺寸界线、尺寸线一律<b>细实线</b>：先引界线（离开轮廓约 2 mm），再画尺寸线，箭头尖端顶住界线，数字写在尺寸线上方。",
+      elements: [
+        DIM("d-len", { from: P(-43, 0), to: P(43, 0), offset: mm(37), text: "86" }),
+        DIM("d-wid", { from: P(43, -25), to: P(43, 25), offset: mm(12), orientation: "vertical", text: "50" }),
+        DIM("d-dia", { from: P(-11, 0), to: P(11, 0), offset: 0, text: "Ø22" })
+      ]
+    }
+  ];
+
+  /* =========================================================
+   * 5. DOM 构建 + 场景同步
+   * =======================================================*/
+  var NS = "http://www.w3.org/2000/svg";
+  var scene = document.getElementById("scene");
+  var sceneContent = document.getElementById("sceneContent");
+  var bar = document.getElementById("bar");
+  var narrationEl = document.getElementById("narration");
+  var stepListEl = document.getElementById("stepList");
+  var legendEl = document.getElementById("legend");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+  var resetBtn = document.getElementById("reset");
+  var counterEl = document.getElementById("counter");
+  var progressEl = document.getElementById("progressBar");
+
+  var STAGGER = 150;      // 元素间的错峰（ms）
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function svgEl(tag, attrs, parent) {
+    var n = document.createElementNS(NS, tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+      }
+    }
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
+  function durationOf(el) {
+    if (el.kind === "dimension") return 820;
+    if (el.kind === "line") return 620;
+    return 960; // circle / arc 走得更慢，方便看清起笔方向
+  }
+
+  var nodes = new Map();       // key "stepIdx:elIdx" -> { node, step, defs }
+  var maxEnd = 0;
+  function schedule(ms) { if (ms > maxEnd) maxEnd = ms; }
+
+  function buildNode(el, key, animate, order) {
+    var dur = reduced ? 1 : durationOf(el);
+    var delay = reduced ? 0 : order * STAGGER;
+    var g = svgEl("g", { "data-el": el.id });
+
+    if (el.kind === "dimension") {
+      var geo = buildDimension(el);
+      var lineG = g;
+
+      if (animate) {
+        var dimMask = svgEl("mask", {
+          id: "mk-" + key.replace(":", "-"),
+          maskUnits: "userSpaceOnUse",
+          maskContentUnits: "userSpaceOnUse",
+          x: 0, y: 0, width: 920, height: 660
+        });
+        svgEl("path", {
+          d: geo.path, fill: "none", stroke: "#fff", "stroke-width": 34,
+          "stroke-linecap": "round", "stroke-linejoin": "round",
+          pathLength: 1, class: "reveal",
+          style: "animation-delay:" + delay + "ms;animation-duration:" + dur + "ms"
+        }, dimMask);
+        var dimDefs = svgEl("defs", null, scene);
+        dimDefs.appendChild(dimMask);
+        g._defs = dimDefs;
+        lineG = svgEl("g", { mask: "url(#mk-" + key.replace(":", "-") + ")" }, g);
+        schedule(delay + dur);
+      }
+
+      var thin = strokeAttrs("thin", COLOR.dim);
+      geo.extension.forEach(function (pair) {
+        svgEl("line", {
+          x1: pair[0].x, y1: pair[0].y, x2: pair[1].x, y2: pair[1].y,
+          stroke: thin.stroke, "stroke-width": thin["stroke-width"]
+        }, lineG);
+      });
+      svgEl("line", {
+        x1: geo.line[0].x, y1: geo.line[0].y, x2: geo.line[1].x, y2: geo.line[1].y,
+        stroke: thin.stroke, "stroke-width": thin["stroke-width"]
+      }, lineG);
+      geo.arrows.forEach(function (pts) {
+        svgEl("polygon", {
+          points: pts.map(function (p) { return p[0] + "," + p[1]; }).join(" "),
+          fill: COLOR.dim
+        }, lineG);
+      });
+
+      var textG = svgEl("g", { class: animate ? "fade-in" : null }, g);
+      if (animate) {
+        textG.setAttribute("style", "animation-delay:" + Math.round(dur * 0.72 + delay) + "ms");
+      }
+      var t = svgEl("text", {
+        x: geo.text.x, y: geo.text.y,
+        "text-anchor": "middle",
+        "dominant-baseline": "central",
+        class: "dim-text"
+      }, textG);
+      t.setAttribute("transform", "rotate(" + geo.text.angle + " " + geo.text.x + " " + geo.text.y + ")");
+      t.textContent = geo.text.value;
+
+      return g;
+    }
+
+    var d = shapePath(el);
+    var attrs = strokeAttrs(el.lineType);
+    var group = g;
+
+    if (animate) {
+      var maskId = "mk-" + key.replace(":", "-");
+      var defs = svgEl("defs", null, scene);
+      var mask = svgEl("mask", {
+        id: maskId,
+        maskUnits: "userSpaceOnUse",
+        maskContentUnits: "userSpaceOnUse",
+        x: 0, y: 0, width: 920, height: 660
+      }, defs);
+      svgEl("path", {
+        d: d, fill: "none", stroke: "#fff", "stroke-width": 34,
+        "stroke-linecap": "round", "stroke-linejoin": "round",
+        pathLength: 1, class: "reveal",
+        style: "animation-delay:" + delay + "ms;animation-duration:" + dur + "ms"
+      }, mask);
+      g._defs = defs;
+      group = svgEl("g", { mask: "url(#" + maskId + ")" }, g);
+      schedule(delay + dur);
+    }
+
+    svgEl("path", Object.assign({ d: d }, attrs), group);
+    return g;
+  }
+
+  var current = -1;
+  var animating = false;
+  var busyTimer = 0;
+
+  function goTo(index, animate) {
+    if (index < 0 || index >= STEPS.length) return;
+    clearTimeout(busyTimer);
+    current = index;
+    maxEnd = 0;
+
+    // 向后回退：删除后续步骤的节点
+    nodes.forEach(function (rec, key) {
+      if (rec.step > index) {
+        rec.node.remove();
+        if (rec.defs) rec.defs.remove();
+        nodes.delete(key);
+      }
+    });
+
+    // 向前的步骤补齐（已存在的节点保留，不会重播动画）
+    for (var si = 0; si <= index; si++) {
+      (function (stepIdx) {
+        STEPS[stepIdx].elements.forEach(function (el, ei) {
+          var key = stepIdx + ":" + ei;
+          if (nodes.has(key)) return;
+          var withAnim = animate && stepIdx === index;
+          var node = buildNode(el, key, withAnim, ei);
+          sceneContent.appendChild(node);
+          nodes.set(key, { node: node, step: stepIdx, defs: node._defs });
+        });
+      })(si);
+    }
+
+    animating = maxEnd > 0;
+    render();
+    if (animating) {
+      busyTimer = setTimeout(function () {
+        animating = false;
+        render();
+      }, maxEnd + 60);
+    }
+  }
+
+  function render() {
+    // 步骤列表
+    Array.prototype.forEach.call(stepListEl.children, function (li, i) {
+      li.className = i === current ? "is-current" : (i < current ? "is-done" : "");
+    });
+
+    // 讲解文字（变化时重播淡入）
+    var step = STEPS[current];
+    var html = "<b>" + step.title + "</b> · " + step.narration;
+    if (narrationEl.innerHTML !== html) {
+      narrationEl.innerHTML = html;
+      narrationEl.style.animation = "none";
+      void narrationEl.offsetWidth;
+      narrationEl.style.animation = "";
+      narrationEl.classList.remove("fade-in");
+      void narrationEl.offsetWidth;
+      narrationEl.classList.add("fade-in");
+    }
+
+    counterEl.textContent = (current + 1) + " / " + STEPS.length;
+    progressEl.style.width = ((current + 1) / STEPS.length * 100) + "%";
+    prevBtn.disabled = current <= 0;
+    nextBtn.disabled = animating || current >= STEPS.length - 1;
+    bar.classList.toggle("busy", animating);
+  }
+
+  /* -------- 侧栏构建 -------- */
+  STEPS.forEach(function (step, i) {
+    var li = document.createElement("li");
+    li.innerHTML = '<span class="idx">' + (i + 1) + "</span><span class=\"t\">" + step.title + "</span>";
+    li.addEventListener("click", function () { goTo(i, true); });
+    stepListEl.appendChild(li);
+  });
+
+  Object.keys(LINE_TYPES).forEach(function (key) {
+    var t = LINE_TYPES[key];
+    var li = document.createElement("li");
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", "58");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("viewBox", "0 0 58 12");
+    var attrs = strokeAttrs(key);
+    var path = document.createElementNS(NS, "path");
+    path.setAttribute("d", "M1 6H57");
+    path.setAttribute("stroke", attrs.stroke);
+    path.setAttribute("stroke-width", Math.min(attrs["stroke-width"], 2.6));
+    if (attrs["stroke-dasharray"]) path.setAttribute("stroke-dasharray", attrs["stroke-dasharray"]);
+    path.setAttribute("stroke-linecap", attrs["stroke-linecap"]);
+    svg.appendChild(path);
+    li.appendChild(svg);
+    var name = document.createElement("span");
+    name.textContent = t.label;
+    li.appendChild(name);
+    var hint = document.createElement("span");
+    hint.className = "h";
+    hint.textContent = t.hint;
+    li.appendChild(hint);
+    legendEl.appendChild(li);
+  });
+
+  /* -------- 交互 -------- */
+  nextBtn.addEventListener("click", function () {
+    if (animating) return;
+    goTo(current + 1, true);
+  });
+  prevBtn.addEventListener("click", function () {
+    clearTimeout(busyTimer);
+    animating = false;
+    goTo(current - 1, false);
+  });
+  resetBtn.addEventListener("click", function () {
+    clearTimeout(busyTimer);
+    animating = false;
+    goTo(0, true);
+  });
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") { e.preventDefault(); if (!animating && current < STEPS.length - 1) goTo(current + 1, true); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); goTo(current - 1, false); }
+  });
+
+  // 首屏：支持 ?step=N 直达某一步（方便老师在课堂上直接跳到指定步骤）
+  var startParam = parseInt((new URLSearchParams(location.search).get("step") || "1"), 10);
+  var startIndex = Math.min(Math.max((isNaN(startParam) ? 1 : startParam) - 1, 0), STEPS.length - 1);
+  goTo(startIndex, true);
+})();
+</script>
+</body>
+</html>

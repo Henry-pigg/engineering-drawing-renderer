@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schema/drawing-doc.schema.json",
+  "title": "DrawingDoc",
+  "description": "工程制图分步绘图指令。视觉大模型的唯一合法输出格式，前端渲染器的输入契约。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "meta", "steps"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "meta": { "$ref": "#/definitions/meta" },
+    "warnings": {
+      "type": "array",
+      "description": "识别过程中的不确定点，原样展示给学生",
+      "maxItems": 8,
+      "items": { "type": "string", "maxLength": 60 }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": { "$ref": "#/definitions/step" }
+    }
+  },
+
+  "definitions": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "width", "height"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "standard": { "type": "string", "maxLength": 40 },
+        "unit": { "enum": ["mm"] },
+        "width": { "type": "number", "minimum": 200, "maximum": 4000 },
+        "height": { "type": "number", "minimum": 200, "maximum": 4000 },
+        "summary": { "type": "string", "maxLength": 60 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "primitives"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "narration": { "type": "string", "maxLength": 120 },
+        "primitives": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": { "$ref": "#/definitions/primitive" }
+        }
+      }
+    },
+
+    "lineType": { "enum": ["thick", "thin", "dashed", "center"] },
+
+    "primitive": {
+      "anyOf": [
+        { "$ref": "#/definitions/line" },
+        { "$ref": "#/definitions/circle" },
+        { "$ref": "#/definitions/arc" },
+        { "$ref": "#/definitions/dimension" }
+      ]
+    },
+
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "x1", "y1", "x2", "y2"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "line" },
+        "lineType": { "$ref": "#/definitions/lineType" },
+        "note": { "type": "string" },
+        "x1": { "type": "number" },
+        "y1": { "type": "number" },
+        "x2": { "type": "number" },
+        "y2": { "type": "number" }
+      }
+    },
+
+    "circle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "cx", "cy", "r"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "circle" },
+        "lineType": { "$ref": "#/definitions/lineType" },
+        "note": { "type": "string" },
+        "cx": { "type": "number" },
+        "cy": { "type": "number" },
+        "r": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 }
+      }
+    },
+
+    "arc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "cx", "cy", "r", "startAngle", "endAngle"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "arc" },
+        "lineType": { "$ref": "#/definitions/lineType" },
+        "note": { "type": "string" },
+        "cx": { "type": "number" },
+        "cy": { "type": "number" },
+        "r": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 },
+        "startAngle": { "type": "number", "minimum": -360, "maximum": 360 },
+        "endAngle": { "type": "number", "minimum": -360, "maximum": 360 }
+      }
+    },
+
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "from", "to", "text"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "dimension" },
+        "note": { "type": "string" },
+        "lineType": {
+          "description": "允许出现但被忽略：尺寸线恒为细实线，由前端决定",
+          "$ref": "#/definitions/lineType"
+        },
+        "from": { "$ref": "#/definitions/point" },
+        "to": { "$ref": "#/definitions/point" },
+        "offset": { "type": "number", "minimum": -600, "maximum": 600 },
+        "orientation": { "enum": ["aligned", "horizontal", "vertical"] },
+        "text": { "type": "string", "minLength": 1, "maxLength": 24 }
+      }
+    }
+  }
+}
