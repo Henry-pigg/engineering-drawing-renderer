@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DrawingDoc } from '../types';
 import type { ValidationIssue } from '../core/validate';
-import { RecognitionError, defaultRecognizer, type Recognizer } from '../vision/client';
+import { RecognitionError, type Recognizer } from '../vision/client';
 
 export type RecognitionStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -32,11 +32,13 @@ const initialState = (doc: DrawingDoc): RecognitionState => ({
  * 识别流程状态机：上传 → 请求 → 校验 → 渲染。
  *
  * 三条约束：
- * 1. 只允许一个在途请求，新请求自动取消旧的（避免学生连点两张图后旧结果覆盖新结果）；
+ * 1. 只允许一个在途请求，新请求自动取消旧的（避免连点两张图后旧结果覆盖新结果）；
  * 2. 失败时保留上一次成功的 doc，画布不闪空；
  * 3. 成功时 revision++，播放器据此回到第一步 —— 换了题目却停在第 7 步很奇怪。
+ *
+ * recognizer 为 null 表示用户还没填接口地址：此时明确报错，不做任何兜底。
  */
-export function useRecognition(initialDoc: DrawingDoc, recognizer: Recognizer = defaultRecognizer) {
+export function useRecognition(recognizer: Recognizer | null, initialDoc: DrawingDoc) {
   const [state, setState] = useState<RecognitionState>(() => initialState(initialDoc));
   const abortRef = useRef<AbortController | null>(null);
   const urlRef = useRef<string | null>(null);
@@ -58,6 +60,15 @@ export function useRecognition(initialDoc: DrawingDoc, recognizer: Recognizer = 
 
   const recognize = useCallback(
     async (file: File) => {
+      if (!recognizer) {
+        setState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: { code: 'no_endpoint', message: '请先在上方填写识别接口地址' },
+        }));
+        return;
+      }
+
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -99,12 +110,7 @@ export function useRecognition(initialDoc: DrawingDoc, recognizer: Recognizer = 
     [recognizer, releasePreview],
   );
 
-  const cancel = useCallback(() => {
-    abortRef.current?.abort();
-    setState((prev) => ({ ...prev, status: prev.doc ? 'success' : 'idle' }));
-  }, []);
-
-  const restoreSample = useCallback(() => {
+  const reset = useCallback(() => {
     abortRef.current?.abort();
     releasePreview();
     setState((prev) => ({
@@ -113,5 +119,5 @@ export function useRecognition(initialDoc: DrawingDoc, recognizer: Recognizer = 
     }));
   }, [initialDoc, releasePreview]);
 
-  return { state, recognize, cancel, restoreSample };
+  return { state, recognize, reset };
 }

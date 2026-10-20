@@ -1,13 +1,18 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { DrawingCanvas } from './components/DrawingCanvas';
 import { StepControls } from './components/StepControls';
 import { UploadPanel } from './components/UploadPanel';
+import { ApiEndpointField } from './components/ApiEndpointField';
 import { useStepPlayer } from './hooks/useStepPlayer';
 import { useRecognition } from './hooks/useRecognition';
-import { sampleDrawing } from './data/sample-drawing';
+import { useEndpointSettings } from './hooks/useEndpoint';
+import { createEmptyDoc } from './data/empty-doc';
+import { createHttpRecognizer, type Recognizer } from './vision/client';
 import { LINE_STYLES, strokeProps } from './core/linetypes';
-import { isMockMode } from './vision/client';
 import type { LineType } from './types';
+
+/** 模块级常量：保证 useRecognition 的初始值引用稳定 */
+const EMPTY_DOC = createEmptyDoc();
 
 /** 极简富文本：把 **粗体** 渲染成 <b>，避免为讲解文案引入 markdown 依赖 */
 function RichText({ text }: { text: string }) {
@@ -21,9 +26,20 @@ function RichText({ text }: { text: string }) {
 }
 
 export function App() {
-  const { state, recognize, restoreSample } = useRecognition(sampleDrawing);
-  const doc = state.doc ?? sampleDrawing;
+  const envEndpoint = import.meta.env.VITE_RECOGNIZE_ENDPOINT ?? '';
+  const { endpoint, token, configured, save, clear } = useEndpointSettings(envEndpoint);
+
+  // 接口地址由用户填写；没填就不给识别器，上传时会明确提示
+  const recognizer = useMemo<Recognizer | null>(() => {
+    if (!configured) return null;
+    const base = createHttpRecognizer(endpoint);
+    return (file, options) => base(file, { ...options, token });
+  }, [configured, endpoint, token]);
+
+  const { state, recognize, reset } = useRecognition(recognizer, EMPTY_DOC);
+  const doc = state.doc ?? EMPTY_DOC;
   const player = useStepPlayer(doc.steps, { resetKey: state.revision });
+  const hasDrawing = doc.steps.length > 0;
   const { next, prev } = player;
 
   useEffect(() => {
@@ -41,11 +57,7 @@ export function App() {
   }, [next, prev]);
 
   const tag =
-    state.status === 'loading'
-      ? '识别中'
-      : isMockMode
-        ? '示例数据'
-        : `已接入识别 · ${state.elapsedMs ?? 0}ms`;
+    state.status === 'loading' ? '识别中' : configured ? '接口已配置' : '未配置接口';
 
   return (
     <div className="ed-app">
@@ -71,6 +83,14 @@ export function App() {
       </header>
 
       <aside className="ed-sidebar">
+        <ApiEndpointField
+          endpoint={endpoint}
+          token={token}
+          configured={configured}
+          onSave={save}
+          onClear={clear}
+        />
+
         <UploadPanel
           status={state.status}
           imageUrl={state.imageUrl}
@@ -81,24 +101,28 @@ export function App() {
           error={state.error}
           elapsedMs={state.elapsedMs}
           issues={state.issues}
+          ready={configured}
           onSelect={recognize}
-          onRestore={restoreSample}
         />
 
-        <h2>绘制步骤</h2>
-        <ol className="ed-steps">
-          {doc.steps.map((step, i) => {
-            const cls = i === player.index ? 'is-current' : i < player.index ? 'is-done' : '';
-            return (
-              <li key={step.id} className={cls}>
-                <button type="button" onClick={() => player.goTo(i)}>
-                  <span className="ed-steps__idx">{i + 1}</span>
-                  <span className="ed-steps__title">{step.title}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+        {hasDrawing && (
+          <>
+            <h2>绘制步骤</h2>
+            <ol className="ed-steps">
+              {doc.steps.map((step, i) => {
+                const cls = i === player.index ? 'is-current' : i < player.index ? 'is-done' : '';
+                return (
+                  <li key={step.id} className={cls}>
+                    <button type="button" onClick={() => player.goTo(i)}>
+                      <span className="ed-steps__idx">{i + 1}</span>
+                      <span className="ed-steps__title">{step.title}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        )}
 
         <h2>线型图例</h2>
         <ul className="ed-legend">
@@ -127,22 +151,45 @@ export function App() {
       <main className="ed-stage">
         <div className="ed-paper">
           <DrawingCanvas doc={doc} stepIndex={player.index} className="ed-canvas" />
+          {!hasDrawing && (
+            <div className="ed-empty">
+              <strong>还没有图纸</strong>
+              <span>
+                {configured
+                  ? '在左侧上传手绘草图或题目图，自动拆成可回放的绘制步骤'
+                  : '先在左侧填写识别接口地址，再上传图纸'}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="ed-bar">
-          <p className="ed-narration" key={`${state.revision}-${player.index}`}>
-            <b>{player.step.title}</b> · <RichText text={player.step.narration ?? ''} />
-          </p>
-          <StepControls
-            index={player.index}
-            total={doc.steps.length}
-            canPrev={player.canPrev}
-            canNext={player.canNext}
-            playing={player.status === 'playing'}
-            onPrev={player.prev}
-            onNext={player.next}
-            onReset={player.reset}
-          />
+          {hasDrawing && player.step ? (
+            <>
+              <p className="ed-narration" key={`${state.revision}-${player.index}`}>
+                <b>{player.step.title}</b> · <RichText text={player.step.narration ?? ''} />
+              </p>
+              <StepControls
+                index={player.index}
+                total={doc.steps.length}
+                canPrev={player.canPrev}
+                canNext={player.canNext}
+                playing={player.status === 'playing'}
+                onPrev={player.prev}
+                onNext={player.next}
+                onReset={() => {
+                  player.reset();
+                  reset();
+                }}
+              />
+            </>
+          ) : (
+            <p className="ed-narration ed-narration--muted">
+              {configured
+                ? '等待上传图纸。识别完成后这里会显示每一步的讲解，可逐步回放。'
+                : '先填写识别接口地址。识别完成后，这里会逐步演示这张图的画法。'}
+            </p>
+          )}
         </div>
       </main>
     </div>

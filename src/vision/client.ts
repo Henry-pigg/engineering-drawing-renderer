@@ -1,25 +1,20 @@
 import type { DrawingDoc } from '../types';
 import { normalizeDrawingDoc, type ValidationIssue } from '../core/validate';
 import { parseJsonLoose } from '../core/json';
-import { sampleDrawing } from '../data/sample-drawing';
 import { CONTRACT_VERSION, PROMPT_VERSION, type UserMessageInput } from './prompt';
 
 /**
  * 识别服务适配层。
  *
- * 前端只认一个函数签名 `Recognizer`，背后的实现可以随便换：
- *   · createHttpRecognizer(端点)  —— 接你们自己的后端
- *   · createMockRecognizer()      —— 无后端时演示用
- * 切换只看 VITE_RECOGNIZE_ENDPOINT 是否有值，业务代码不用改。
+ * 接口地址由用户在页面上填写（存在 localStorage），不再有 mock 兜底：
+ * 没填地址就明确报错，而不是悄悄返回示例数据。
  *
  * ── 接口约定（后端按这个实现即可） ──────────────────────────────
  * POST {endpoint}   Content-Type: application/json
+ * 可选请求头：Authorization: Bearer {token}
  * 请求体：{ image: dataURL, hint?, canvas: {width,height}, promptVersion, contractVersion }
  * 成功： 200 { doc: DrawingDoc }            // doc 也可以被包在 {data}、{result} 里
  * 失败： 4xx/5xx { error: { code, message } }
- *
- * 后端职责：拿 image 调视觉模型 → 用 prompt/system-prompt.md 作为 system message
- * → 把模型返回解析成 JSON → 塞进 doc 字段返回。脏数据不用在后端洗，前端会兜。
  */
 
 export type RecognitionErrorCode =
@@ -29,7 +24,8 @@ export type RecognitionErrorCode =
   | 'http'
   | 'parse'
   | 'invalid'
-  | 'unsupported';
+  | 'unsupported'
+  | 'no_endpoint';
 
 export class RecognitionError extends Error {
   readonly code: RecognitionErrorCode;
@@ -48,6 +44,8 @@ export class RecognitionError extends Error {
 export interface RecognizeOptions extends UserMessageInput {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** 可选：随请求发送的 Bearer token */
+  token?: string;
 }
 
 export interface RecognizeResult {
@@ -105,12 +103,20 @@ function unwrapPayload(json: unknown): unknown {
   return obj;
 }
 
+/** 规整用户填的地址：补协议、去尾部斜杠 */
+export function normalizeEndpoint(raw: string): string {
+  const value = raw.trim();
+  if (!value) return '';
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  return withProtocol.replace(/\/+$/, '');
+}
+
 export function createHttpRecognizer(endpoint: string): Recognizer {
   return async (file, options = {}) => {
     const started = performance.now();
 
     if (!file.type.startsWith('image/')) {
-      throw new RecognitionError('unsupported', '请上传图片文件（JPG / PNG / HEIC 转存）');
+      throw new RecognitionError('unsupported', '请上传图片文件（JPG / PNG）');
     }
     if (file.size > MAX_FILE_BYTES) {
       throw new RecognitionError('unsupported', '图片超过 10MB，请压缩后再试');
@@ -129,9 +135,14 @@ export function createHttpRecognizer(endpoint: string): Recognizer {
     options.signal?.addEventListener('abort', forwardAbort);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (options.token?.trim()) {
+        headers.Authorization = `Bearer ${options.token.trim()}`;
+      }
+
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           image,
           hint: options.hint,
@@ -180,7 +191,8 @@ export function createHttpRecognizer(endpoint: string): Recognizer {
           timedOut ? `识别超时（${Math.round(timeoutMs / 1000)}s），可重试或换一张更清晰的图` : '已取消识别',
         );
       }
-      throw new RecognitionError('network', '无法连接识别服务，请检查网络或接口地址', {
+      // 典型的跨域/地址写错都会落到这里
+      throw new RecognitionError('network', '无法连接识别服务，请检查地址、跨域(CORS)与网络', {
         detail: e.message,
       });
     } finally {
@@ -189,43 +201,3 @@ export function createHttpRecognizer(endpoint: string): Recognizer {
     }
   };
 }
-
-/**
- * Mock 识别器：返回内置示例（深拷贝，避免被下游改动），用于无后端时演示完整闭环。
- * 刻意保留 1.2s 延迟，好让加载态被真正看到。
- */
-export function createMockRecognizer(delayMs = 1200): Recognizer {
-  return async (file, options = {}) => {
-    const started = performance.now();
-    if (!file.type.startsWith('image/')) {
-      throw new RecognitionError('unsupported', '请上传图片文件（JPG / PNG）');
-    }
-    await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(resolve, delayMs);
-      options.signal?.addEventListener('abort', () => {
-        window.clearTimeout(timer);
-        reject(new RecognitionError('aborted', '已取消识别'));
-      });
-    });
-
-    const doc = JSON.parse(JSON.stringify(sampleDrawing)) as DrawingDoc;
-    doc.meta.summary = `演示模式：未接识别服务，返回示例「${doc.meta.title}」`;
-    doc.meta.confidence = 0.55;
-    doc.warnings = ['当前为 mock 数据，配置 VITE_RECOGNIZE_ENDPOINT 后接入真实识别'];
-
-    return {
-      doc,
-      issues: [],
-      elapsedMs: Math.round(performance.now() - started),
-    };
-  };
-}
-
-const ENDPOINT = (import.meta.env.VITE_RECOGNIZE_ENDPOINT ?? '').trim();
-
-/** 当前生效的识别器：配了端点走真实服务，否则走 mock */
-export const defaultRecognizer: Recognizer = ENDPOINT
-  ? createHttpRecognizer(ENDPOINT)
-  : createMockRecognizer();
-
-export const isMockMode = ENDPOINT === '';

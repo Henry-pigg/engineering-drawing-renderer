@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { RecognitionStatus } from '../hooks/useRecognition';
 import type { ValidationIssue } from '../core/validate';
 
@@ -12,8 +12,9 @@ interface Props {
   error: { code: string; message: string } | null;
   elapsedMs: number | null;
   issues: ValidationIssue[];
+  /** 是否已填写识别接口地址 */
+  ready: boolean;
   onSelect: (file: File) => void;
-  onRestore: () => void;
 }
 
 function confidenceLabel(v?: number): { text: string; tone: string } | null {
@@ -39,11 +40,10 @@ export function UploadPanel({
   error,
   elapsedMs,
   issues,
+  ready,
   onSelect,
-  onRestore,
 }: Props) {
   const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const loading = status === 'loading';
   const conf = confidenceLabel(confidence);
   const fixedCount = issues.filter((i) => i.fixed).length;
@@ -57,36 +57,36 @@ export function UploadPanel({
     <section className="ed-upload">
       <div className="ed-upload__head">
         <h2>题目图</h2>
-        {(imageUrl || fileName) && (
-          <button type="button" className="ed-upload__link" onClick={onRestore}>
-            用示例
-          </button>
-        )}
       </div>
 
       <label
-        className={`ed-drop${dragging ? ' is-over' : ''}${loading ? ' is-busy' : ''}`}
+        className={`ed-drop${dragging ? ' is-over' : ''}${loading ? ' is-busy' : ''}${
+          ready ? '' : ' is-locked'
+        }`}
         onDragOver={(e) => {
+          if (!ready) return;
           e.preventDefault();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => {
+          if (!ready) return;
           e.preventDefault();
           setDragging(false);
           handleFiles(e.dataTransfer.files);
         }}
       >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="ed-drop__input"
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
+        {ready && (
+          <input
+            type="file"
+            accept="image/*"
+            className="ed-drop__input"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        )}
 
         {imageUrl ? (
           <img className="ed-drop__img" src={imageUrl} alt="题目图预览" />
@@ -96,8 +96,8 @@ export function UploadPanel({
               <path d="M12 16V4m0 0L7 9m5-5 5 5" />
               <path d="M3 16v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" />
             </svg>
-            <strong>拖入或点击上传</strong>
-            <span>手绘草图 / 题目插图 · ≤10MB</span>
+            <strong>{ready ? '拖入或点击上传' : '请先填写接口地址'}</strong>
+            <span>{ready ? '手绘草图 / 题目插图 · ≤10MB' : '地址填好后即可上传'}</span>
           </div>
         )}
 
@@ -121,7 +121,11 @@ export function UploadPanel({
           {summary && <p className="ed-upload__summary">{summary}</p>}
           <div className="ed-upload__meta">
             {conf && <span className={`ed-badge ${conf.tone}`}>{conf.text}</span>}
-            {fileName && <span className="ed-upload__file" title={fileName}>{fileName}</span>}
+            {fileName && (
+              <span className="ed-upload__file" title={fileName}>
+                {fileName}
+              </span>
+            )}
             {elapsedMs !== null && <span className="ed-upload__file">{elapsedMs}ms</span>}
           </div>
         </div>

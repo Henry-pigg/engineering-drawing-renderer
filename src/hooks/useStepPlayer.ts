@@ -14,7 +14,8 @@ function prefersReducedMotion(): boolean {
 
 export interface StepPlayer {
   index: number;
-  step: Step;
+  /** 空图纸（尚未识别）时为 null */
+  step: Step | null;
   status: PlayerStatus;
   /** 进度条用：0 ~ 1 */
   progress: number;
@@ -52,7 +53,7 @@ export function useStepPlayer(steps: Step[], options: StepPlayerOptions = {}): S
     setStatus('idle');
   }, [resetKey]);
 
-  const current = steps[Math.min(index, steps.length - 1)];
+  const current = steps.length > 0 ? steps[Math.min(index, steps.length - 1)] : null;
   const rawDuration = useMemo(() => stepDuration(current?.primitives ?? []), [current]);
   const duration = prefersReducedMotion() ? 0 : rawDuration;
 

@@ -219,6 +219,7 @@ body {
 }
 
 .ed-paper {
+  position: relative;
   background: #fff;
   border-radius: 10px;
   overflow: hidden;
@@ -638,4 +639,169 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* ---------------- 接口设置 ---------------- */
+.ed-endpoint {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.ed-endpoint__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ed-endpoint__head h2 {
+  margin: 0;
+}
+
+.ed-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--ed-muted);
+}
+
+.ed-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4a5568;
+}
+
+.ed-dot.is-on {
+  color: #6fd8ae;
+}
+
+.ed-dot.is-on::before {
+  background: #4ecf9a;
+  box-shadow: 0 0 0 3px rgba(78, 207, 154, 0.15);
+}
+
+.ed-input {
+  width: 100%;
+  font: inherit;
+  font-size: 11.5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2c3648;
+  background: #0e131b;
+  color: #dbe6f4;
+  outline: none;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.ed-input::placeholder {
+  color: #66748a;
+}
+
+.ed-input:focus {
+  border-color: var(--ed-accent);
+  background: #101722;
+}
+
+.ed-input--token {
+  font-size: 11px;
+}
+
+.ed-endpoint__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ed-btn {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid #2c3648;
+  background: #1c2431;
+  color: #cdd9e8;
+  transition: all 0.16s ease;
+}
+
+.ed-btn:hover:not(:disabled) {
+  background: #24303f;
+  color: #fff;
+}
+
+.ed-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ed-btn--primary {
+  background: linear-gradient(180deg, #4ea8ff, #3585e0);
+  border-color: #2f7ad0;
+  color: #fff;
+  font-weight: 600;
+}
+
+.ed-btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #5fb3ff, #3d90ea);
+}
+
+.ed-btn--quiet {
+  color: var(--ed-muted);
+}
+
+.ed-endpoint__error {
+  margin: 0;
+  font-size: 10.5px;
+  color: #f09595;
+}
+
+.ed-endpoint__hint {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: #6f7d92;
+}
+
+.ed-endpoint__hint code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  color: #8fb3d9;
+}
+
+/* ---------------- 空状态 ---------------- */
+.ed-drop.is-locked {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ed-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.ed-empty strong {
+  font-size: 14px;
+  font-weight: 500;
+  color: #8593a8;
+}
+
+.ed-empty span {
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #9aa8bc;
+}
+
+.ed-narration--muted {
+  color: var(--ed-muted);
 }
