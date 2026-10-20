@@ -36,6 +36,9 @@ jobs:
         run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          # 识别服务地址。仓库 Settings → Secrets and variables → Actions → Variables
+          # 建一个名为 VITE_RECOGNIZE_ENDPOINT 的变量即可；留空则走内置 mock。
+          VITE_RECOGNIZE_ENDPOINT: ${{ vars.VITE_RECOGNIZE_ENDPOINT }}
 
       - uses: actions/configure-pages@v5
 
